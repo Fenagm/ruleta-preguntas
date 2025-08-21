@@ -1,143 +1,136 @@
-import { useState, useEffect } from 'react';
-import { supabase, getSessionId, type CustomQuestion } from '../lib/supabase';
+// CustomQuestions.tsx
+import React, { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { useCustomQuestions } from '../hooks/useCustomQuestions';
 
-export const useCustomQuestions = () => {
-  const [questions, setQuestions] = useState<CustomQuestion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface Category {
+  name: string;
+  emoji: string;
+}
 
-  // Load questions on mount
-  useEffect(() => {
-    loadQuestions();
-  }, []);
+interface CustomQuestionsProps {
+  categories: Category[];
+  onQuestionsChange: () => void;
+}
 
-  const loadQuestions = async () => {
+const CustomQuestions: React.FC<CustomQuestionsProps> = ({ categories, onQuestionsChange }) => {
+  const [newQuestion, setNewQuestion] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const { questions, loading, error, addQuestion, deleteQuestion } = useCustomQuestions();
+
+  const handleAddQuestion = async () => {
+    if (!newQuestion.trim() || !selectedCategory) return;
+    
     try {
-      setLoading(true);
-      setError(null);
-
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      let query = supabase
-        .from('custom_questions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (user) {
-        // Authenticated user - get their questions
-        query = query.eq('user_id', user.id);
-      } else {
-        // Anonymous user - get session questions
-        const sessionId = getSessionId();
-        
-        // Set session context for RLS
-        await supabase.rpc('set_config', {
-          setting_name: 'app.session_id',
-          setting_value: sessionId
-        });
-        
-        query = query.eq('session_id', sessionId);
-      }
-
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      setQuestions(data || []);
-    } catch (err) {
-      console.error('Error loading questions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load questions');
-    } finally {
-      setLoading(false);
+      await addQuestion(newQuestion.trim(), selectedCategory);
+      setNewQuestion('');
+      setSelectedCategory('');
+      onQuestionsChange();
+    } catch (error) {
+      console.error('Error adding question:', error);
     }
   };
 
-  const addQuestion = async (question: string, category: string) => {
+  const handleDeleteQuestion = async (id: string) => {
     try {
-      setError(null);
+      await deleteQuestion(id);
+      onQuestionsChange();
+    } catch (error) {
+      console.error('Error deleting question:', error);
+    }
+  };
 
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-6 shadow-lg">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Tus Preguntas Personalizadas</h3>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="text-gray-600 mt-2">Cargando preguntas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow-lg">
+      <h3 className="text-xl font-bold text-gray-800 mb-4">Tus Preguntas Personalizadas</h3>
       
-      const newQuestion: Partial<CustomQuestion> = {
-        question,
-        category,
-      };
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
 
-      if (user) {
-        newQuestion.user_id = user.id;
-      } else {
-        const sessionId = getSessionId();
-        newQuestion.session_id = sessionId;
+      {/* Add new question form */}
+      <div className="mb-6">
+        <div className="grid gap-4">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+            <option value="">Selecciona una categoría</option>
+            {categories.map((category) => (
+              <option key={category.name} value={category.name}>
+                {category.emoji} {category.name}
+              </option>
+            ))}
+          </select>
+          
+          <textarea
+            value={newQuestion}
+            onChange={(e) => setNewQuestion(e.target.value)}
+            placeholder="Escribe tu pregunta personalizada..."
+            rows={3}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+          />
+          
+          <button
+            onClick={handleAddQuestion}
+            disabled={!newQuestion.trim() || !selectedCategory}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            <Plus size={20} className="mr-2" />
+            Agregar Pregunta
+          </button>
+        </div>
+      </div>
+
+      {/* Questions list */}
+      <div>
+        <h4 className="text-lg font-semibold text-gray-700 mb-3">Tus Preguntas</h4>
         
-        // Set session context for RLS
-        await supabase.rpc('set_config', {
-          setting_name: 'app.session_id',
-          setting_value: sessionId
-        });
-      }
-
-      const { data, error: insertError } = await supabase
-        .from('custom_questions')
-        .insert([newQuestion])
-        .select()
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      setQuestions(prev => [data, ...prev]);
-      return data;
-    } catch (err) {
-      console.error('Error adding question:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add question');
-      throw err;
-    }
-  };
-
-  const deleteQuestion = async (id: string) => {
-    try {
-      setError(null);
-
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        // Set session context for RLS for anonymous users
-        const sessionId = getSessionId();
-        await supabase.rpc('set_config', {
-          setting_name: 'app.session_id',
-          setting_value: sessionId
-        });
-      }
-
-      const { error: deleteError } = await supabase
-        .from('custom_questions')
-        .delete()
-        .eq('id', id);
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      setQuestions(prev => prev.filter(q => q.id !== id));
-    } catch (err) {
-      console.error('Error deleting question:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete question');
-      throw err;
-    }
-  };
-
-  return {
-    questions,
-    loading,
-    error,
-    addQuestion,
-    deleteQuestion,
-    refetch: loadQuestions
-  };
+        {questions.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">
+            No tienes preguntas personalizadas aún.
+          </p>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {questions.map((question) => (
+              <div key={question.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-700">
+                    {question.question}
+                  </span>
+                  <span className="block text-xs text-gray-500 mt-1">
+                    Categoría: {question.category}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleDeleteQuestion(question.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Eliminar pregunta"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
+
+export default CustomQuestions;
