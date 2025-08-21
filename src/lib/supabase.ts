@@ -1,7 +1,17 @@
-// firebase.ts
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,10 +29,10 @@ export const auth = getAuth(app);
 
 // Generate a session ID for anonymous users
 export const getSessionId = () => {
-  let sessionId = localStorage.getItem('conversation_game_session');
+  let sessionId = sessionStorage.getItem('conversation_game_session');
   if (!sessionId) {
     sessionId = crypto.randomUUID();
-    localStorage.setItem('conversation_game_session', sessionId);
+    sessionStorage.setItem('conversation_game_session', sessionId);
   }
   return sessionId;
 };
@@ -37,10 +47,13 @@ export type CustomQuestion = {
 };
 
 // Initialize anonymous authentication
-export const initAuth = async () => {
+export const initAuth = async (): Promise<void> => {
   try {
-    await signInAnonymously(auth);
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
   } catch (error) {
     console.error('Error with anonymous auth:', error);
+    throw error;
   }
 };
