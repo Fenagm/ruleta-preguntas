@@ -1,1 +1,4 @@
-{"code":"rate-limited","message":"You have hit the rate limit. Please upgrade to keep chatting.","providerLimitHit":false,"isRetryable":true}
+// CustomQuestions.tsx
+import React, { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { useCustomQuestions } from '../hooks/useCustomQuestions';
