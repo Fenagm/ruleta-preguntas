@@ -1,13 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+// firebase.ts
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 // Generate a session ID for anonymous users
 export const getSessionId = () => {
@@ -23,7 +31,16 @@ export type CustomQuestion = {
   id: string;
   question: string;
   category: string;
-  created_at: string;
+  created_at: Date;
   user_id?: string;
   session_id?: string;
+};
+
+// Initialize anonymous authentication
+export const initAuth = async () => {
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    console.error('Error with anonymous auth:', error);
+  }
 };
